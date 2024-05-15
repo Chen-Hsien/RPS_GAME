@@ -1,11 +1,7 @@
-import {
-  useConnect,
-  useEthereum,
-  useUserInfo,
-} from "@particle-network/auth-core-modal";
+"use client";
+import { useConnect, useEthereum } from "@particle-network/auth-core-modal";
 import type { NextPage } from "next";
 import Head from "next/head";
-import Image from "next/image";
 import styles from "../styles/Home.module.css";
 import { Presets, Client } from "userop";
 import { Eip1193Provider, ethers } from "ethers";
@@ -18,8 +14,6 @@ enum Hand {
   SCISSORS = 2,
 }
 
-const requiredBalance = ethers.parseEther("0.05");
-
 const Home: NextPage = () => {
   const { connect, disconnect, connectionStatus } = useConnect();
   const [isError, setIsError] = useState(false);
@@ -28,14 +22,7 @@ const Home: NextPage = () => {
   const [resultHash, setResultHash] = useState<string | null>(null);
 
   // use for evm chains
-  const {
-    address,
-    chainId,
-    provider,
-    sendTransaction,
-    signMessage,
-    signTypedData,
-  } = useEthereum();
+  const { provider } = useEthereum();
 
   const aaProvider = new ethers.BrowserProvider(provider as Eip1193Provider);
 
@@ -74,26 +61,6 @@ const Home: NextPage = () => {
     );
 
     try {
-      // const balance = await aaProvider.getBalance(await (await aaProvider.getSigner()).getAddress());
-
-      // console.log("await aaProvider.getSigner():", await aaProvider.getSigner());
-      // console.log("await aaProvider.getSigner().getAddress():", await (await aaProvider.getSigner()).getAddress());
-      // // const signer = await aaProvider.getSigner();
-      // // const address = await signer.getAddress();
-      // // const balance = await aaProvider.getBalance(address); // Fetch balance directly using the signer
-      // console.log("Balance:", balance);
-      // console.log("requiredBalance:", requiredBalance);
-      // // Check if the user has enough balance to play the game
-      // if (requiredBalance > balance){
-      //   // Ensure the balance check is for 0.05 ETH, not 0.005 ETH as previously mentioned unless it's a typo
-      //   setIsError(true);
-      //   setErrorMessage(
-      //     "Insufficient balance to play the game (need at least 0.05 ETH)"
-      //   );
-      //   setIsProcessing(false);
-      //   return;
-      // }
-
       // Encode the contract function call
       const iface = new ethers.Interface(rpsContract.abi);
       const data = iface.encodeFunctionData("play", [hand]);
@@ -110,14 +77,10 @@ const Home: NextPage = () => {
         }
       );
 
-      console.log(`UserOpHash: ${res.userOpHash}`);
-      console.log("Waiting for transaction...");
       setIsProcessing(true);
       const ev = await res.wait();
       setIsProcessing(false);
       setResultHash(ev ? ev.transactionHash : null);
-      console.log("Transaction mined", ev);
-      console.log(`Transaction hash: ${ev?.transactionHash ?? null}`);
     } catch (error) {
       setIsProcessing(false);
       setIsError(true);
@@ -170,7 +133,15 @@ const Home: NextPage = () => {
         )}
 
         <h1 className={styles.title}>Welcome to Rock-Paper-Scissors Game</h1>
-        <p className={styles.description}> contract address</p>
+        <a
+          href={
+            "https://sepolia.etherscan.io/address/0x1e67b58ae75cbed7a14dd1b3e20fa9e19cacb26e"
+          }
+          className={styles.description}
+        >
+          {" "}
+          contract address : 0x1e67b58ae75cbed7a14dd1b3e20fa9e19cacb26e
+        </a>
 
         <p className={styles.description}>BET for 0.005 ETH each round</p>
         {isError && <p className={styles.errorDescription}>{errorMessage}</p>}
