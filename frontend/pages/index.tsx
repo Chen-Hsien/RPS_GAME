@@ -1,7 +1,7 @@
 import {
   useConnect,
   useEthereum,
-  useSolana,
+  useUserInfo,
 } from "@particle-network/auth-core-modal";
 import type { NextPage } from "next";
 import Head from "next/head";
@@ -10,11 +10,22 @@ import styles from "../styles/Home.module.css";
 import { Presets, Client } from "userop";
 import { Eip1193Provider, ethers } from "ethers";
 import { useState } from "react";
+import { rpsContract } from "../contracts/RPS_ABI";
+
+enum Hand {
+  ROCK = 0,
+  PAPER = 1,
+  SCISSORS = 2,
+}
+
+const requiredBalance = ethers.parseEther("0.05");
 
 const Home: NextPage = () => {
   const { connect, disconnect, connectionStatus } = useConnect();
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [resultHash, setResultHash] = useState<string | null>(null);
 
   // use for evm chains
   const {
@@ -36,24 +47,63 @@ const Home: NextPage = () => {
     );
   };
 
-  const executeUserOp = async () => {
+  const playGame = async (hand: Hand) => {
+    if (!provider) {
+      setIsError(true);
+      setErrorMessage("Please connect to your wallet");
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMessage("");
+    setIsError(false);
+
     const paymaster = initializePaymaster();
     const signer = await aaProvider.getSigner();
 
+    // Initialize the builder with the signer and node information
     const builder = await Presets.Builder.SimpleAccount.init(
       signer,
       "https://api.stackup.sh/v1/node/b981e019d1bda428ed0a2c5eb15a68b52f065bd566ab08e02f928c93e9167d7a",
       { paymasterMiddleware: paymaster }
     );
+
+    // Initialize the client
     const client = await Client.init(
       "https://api.stackup.sh/v1/node/b981e019d1bda428ed0a2c5eb15a68b52f065bd566ab08e02f928c93e9167d7a"
     );
+
     try {
+      // const balance = await aaProvider.getBalance(await (await aaProvider.getSigner()).getAddress());
+
+      // console.log("await aaProvider.getSigner():", await aaProvider.getSigner());
+      // console.log("await aaProvider.getSigner().getAddress():", await (await aaProvider.getSigner()).getAddress());
+      // // const signer = await aaProvider.getSigner();
+      // // const address = await signer.getAddress();
+      // // const balance = await aaProvider.getBalance(address); // Fetch balance directly using the signer
+      // console.log("Balance:", balance);
+      // console.log("requiredBalance:", requiredBalance);
+      // // Check if the user has enough balance to play the game
+      // if (requiredBalance > balance){
+      //   // Ensure the balance check is for 0.05 ETH, not 0.005 ETH as previously mentioned unless it's a typo
+      //   setIsError(true);
+      //   setErrorMessage(
+      //     "Insufficient balance to play the game (need at least 0.05 ETH)"
+      //   );
+      //   setIsProcessing(false);
+      //   return;
+      // }
+
+      // Encode the contract function call
+      const iface = new ethers.Interface(rpsContract.abi);
+      const data = iface.encodeFunctionData("play", [hand]);
+
+      // Execute the user operation
       const res = await client.sendUserOperation(
         builder.execute(
-          "0x2f758DE9c4B83ed1a3B777b5f905d46Fa1c2C725",
-          ethers.parseUnits("0.001", "ether"),
-          "0x"
+          rpsContract.address, // Address of your deployed RPS contract
+          ethers.parseUnits("0.05", "ether"), // Amount of ETH to send as specified by the game rules
+          data // Encoded function call
         ),
         {
           onBuild: (op) => console.log("Signed UserOperation:", op),
@@ -62,11 +112,16 @@ const Home: NextPage = () => {
 
       console.log(`UserOpHash: ${res.userOpHash}`);
       console.log("Waiting for transaction...");
+      setIsProcessing(true);
       const ev = await res.wait();
+      setIsProcessing(false);
+      setResultHash(ev ? ev.transactionHash : null);
+      console.log("Transaction mined", ev);
       console.log(`Transaction hash: ${ev?.transactionHash ?? null}`);
-    } catch (error: any) {
+    } catch (error) {
+      setIsProcessing(false);
       setIsError(true);
-      setErrorMessage("Error executing user operation");
+      setErrorMessage("Error playing the game");
       console.error(error);
     }
   };
@@ -114,21 +169,36 @@ const Home: NextPage = () => {
           </>
         )}
 
-        <button className={styles.btn} onClick={executeUserOp}>
-          test sign
-        </button>
-
         <h1 className={styles.title}>Welcome to Rock-Paper-Scissors Game</h1>
+        <p className={styles.description}> contract address</p>
 
         <p className={styles.description}>BET for 0.005 ETH each round</p>
-        {isError && <p className={styles.error}>{errorMessage}</p>}
+        {isError && <p className={styles.errorDescription}>{errorMessage}</p>}
+        {isProcessing && (
+          <div className={styles.description}>Processing...</div>
+        )}
 
         <p className={styles.description}>Choose Your pose</p>
         <div className={styles.grid}>
-          <h2 className={styles.card}>Rock &rarr;</h2>
-          <h2 className={styles.card}>Paper &rarr;</h2>
-          <h2 className={styles.card}>Scissors &rarr;</h2>
+          <h2 className={styles.card} onClick={() => playGame(Hand.ROCK)}>
+            Rock &rarr;
+          </h2>
+          <h2 className={styles.card} onClick={() => playGame(Hand.PAPER)}>
+            Paper &rarr;
+          </h2>
+          <h2 className={styles.card} onClick={() => playGame(Hand.SCISSORS)}>
+            Scissors &rarr;
+          </h2>
         </div>
+        {resultHash && (
+          // Display the result hash with link to the transaction
+          <a
+            href={"https://sepolia.etherscan.io/tx/" + resultHash}
+            className={styles.description}
+          >
+            Result Hash: {resultHash}
+          </a>
+        )}
       </main>
     </div>
   );
