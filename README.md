@@ -1,6 +1,4 @@
-# Getting Started with Create Next App
-
-This project was bootstrapped with [Next.js](https://nextjs.org/) + [Particle Auth Core](https://docs.particle.network/developers/auth-service/core/web).
+# Getting Started with Frontend
 
 ## Quick Start
 
